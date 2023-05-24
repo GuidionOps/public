@@ -2,13 +2,30 @@
 
 set -e
 
-if [[ "$CI" != "" ]];then
-  echo "This script is designed to be run on developer laptops, not CI environments. Exiting"
+# Configure backend and exit early if on CI environment
+#
+if [[ "$CI" != "" || "$1" == "cicd" ]];then
+  echo "terraform {
+  cloud {
+    organization = \"guidion\"
+  }
+}" > backend.tf
+
+
+  echo "🤘 Created backend (CI) configuration as 'backend.tf'"
+  exit 0
+fi
+
+## Local configuration section (CI sould never be able to get to this point)
+#
+AWS_SESSION=$(leapp session current | jq -r '.alias')
+if [[ "$AWS_SESSION" == "" ]]; then
+  echo '⚠️  Something went wrong whilst trying to get your current AWS session. Are you connected to LEAPP? Is this a CI environment?'
   exit 1
 fi
 
 if [ -z "$1" ];then
-  echo "⚠️  Please provde the project name as the first argument (e.g. 'web'"
+  echo "⚠️  Please provide the project name as the first argument (e.g. 'web'"
   echo "ℹ️  Hint: It's the firs bit of a bucket ending with '-dev-terraform-backends'"
   aws s3 ls
   exit 1
@@ -23,12 +40,6 @@ if [ -z "$2" ];then
   exit 1
 fi
 S3_WORKSPACE=$2
-
-AWS_SESSION=$(leapp session current | jq -r '.alias')
-if [[ "$AWS_SESSION" == "" ]]; then
-  echo '⚠️  Something went wrong whilst trying to get your current AWS session. Are you connected to LEAPP?'
-  exit 1
-fi
 
 aws s3 cp "s3://$BUCKET/$S3_WORKSPACE/terraform.tfvars" .
 echo "🤘 Copied variables file to terraform.tfvars"
