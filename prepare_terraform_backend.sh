@@ -44,11 +44,11 @@ fi
 export AWS_PROFILE
 
 echo "ℹ️  Your current AWS profile is named $AWS_PROFILE"
-echo "ℹ️  The session is for the AWS account $(aws sts get-caller-identity | jq -r '.Account')"
+echo "ℹ️  The session is for the AWS account '$(aws --output json sts get-caller-identity | jq -r '.Account')'"
 
 # Now that we've checked for sanity, we can begin
 #
-AWS_SESSION=$(leapp session current --profile "$LEAPP_SESSION_NAME" | jq -r '.alias')
+AWS_SESSION=$(leapp session current --profile "$AWS_PROFILE" | jq -r '.alias')
 if [[ "$AWS_SESSION" == "" ]]; then
   throw_exception 'Something went wrong whilst trying to get your current AWS session. Are you connected to LEAPP? Is this a CI environment?'
 fi
@@ -57,7 +57,7 @@ if [ -z "$1" ];then
   throw_exception "Please provide the project name as the first argument (e.g. 'web')
 ℹ️  Hint: It's the firs bit of a bucket ending with '-dev-terraform-backends'. Here's a listing of all the buckets in this account:
 
-$(aws s3api list-buckets | jq -c '.[] | .[] | try .Name')"
+$(aws s3api list-buckets --output json | jq -c '.[] | .[] | try .Name')"
 fi
 PROJECT=$1
 BUCKET="$PROJECT-dev-terraform-backends"
