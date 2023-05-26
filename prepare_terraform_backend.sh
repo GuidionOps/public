@@ -44,11 +44,6 @@ fi
 
 echo "ℹ️  Your current AWS profile is named $AWS_PROFILE"
 echo "ℹ️  The session is for the AWS account $(aws --profile "$AWS_PROFILE" sts get-caller-identity | jq -r '.Account')"
-read -r -p "❓ Does this all look correct? Only 'yes' will be accepted as affirmative: " CONFIRMATION
-if [[ $(echo "$CONFIRMATION" | tr '[:upper:]' '[:lower:]') != "yes" ]];then
-  echo "☠️  Okay, seeya! ☠️"
-  exit 0
-fi
 
 # Now that we've checked for sanity, we can begin
 #
