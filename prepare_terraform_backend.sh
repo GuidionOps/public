@@ -41,9 +41,10 @@ AWS_PROFILE=$(sed -nE 's/\[(.*)\]/\1/p' < ~/.aws/credentials)
 if [[ "$AWS_PROFILE" == "" ]]; then
   throw_exception "Incredibly, you have a Leapp session, but AWS is somehow not configured. This isn't possible"
 fi
+export AWS_PROFILE
 
 echo "ℹ️  Your current AWS profile is named $AWS_PROFILE"
-echo "ℹ️  The session is for the AWS account $(aws --profile "$AWS_PROFILE" sts get-caller-identity | jq -r '.Account')"
+echo "ℹ️  The session is for the AWS account $(aws sts get-caller-identity | jq -r '.Account')"
 
 # Now that we've checked for sanity, we can begin
 #
@@ -56,7 +57,7 @@ if [ -z "$1" ];then
   throw_exception "Please provide the project name as the first argument (e.g. 'web')
 ℹ️  Hint: It's the firs bit of a bucket ending with '-dev-terraform-backends'. Here's a listing of all the buckets in this account:
 
-$(aws --profile "$AWS_PROFILE" s3api list-buckets | jq -c '.[] | .[] | try .Name')"
+$(aws s3api list-buckets | jq -c '.[] | .[] | try .Name')"
 fi
 PROJECT=$1
 BUCKET="$PROJECT-dev-terraform-backends"
@@ -64,14 +65,18 @@ BUCKET="$PROJECT-dev-terraform-backends"
 if [ -z "$2" ];then
   throw_exception "Please provide one of these for the 'workspace' name as the second argument:
 ℹ️
-$(aws --profile "$AWS_PROFILE" s3 ls "s3://$BUCKET/" | sed 's/PRE //' | sed 's/\///')"
+$(aws s3 ls "s3://$BUCKET/" | sed 's/PRE //' | sed 's/\///')"
 fi
 S3_WORKSPACE=$2
 
-aws --profile "$AWS_PROFILE" s3 cp "s3://$BUCKET/$S3_WORKSPACE/terraform.tfvars" .
+aws s3 cp "s3://$BUCKET/$S3_WORKSPACE/terraform.tfvars" .
 echo "🤘 Copied variables file to terraform.tfvars"
 
 echo "
+provider "aws" {
+  profile = \"$AWS_PROFILE\"
+}
+
 terraform {
   backend \"s3\" {
     bucket         = \"$BUCKET\"
