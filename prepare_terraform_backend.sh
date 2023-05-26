@@ -73,12 +73,9 @@ aws s3 cp "s3://$BUCKET/$S3_WORKSPACE/terraform.tfvars" .
 echo "🤘 Copied variables file to terraform.tfvars"
 
 echo "
-provider "aws" {
-  profile = \"$AWS_PROFILE\"
-}
-
 terraform {
   backend \"s3\" {
+    profile        = \"$AWS_PROFILE\"
     bucket         = \"$BUCKET\"
     key            = \"$S3_WORKSPACE/afsprk_nl.tfstate\"
     region         = \"eu-central-1\"
