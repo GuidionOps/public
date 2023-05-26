@@ -77,7 +77,7 @@ terraform {
   backend \"s3\" {
     profile        = \"$AWS_PROFILE\"
     bucket         = \"$BUCKET\"
-    key            = \"$S3_WORKSPACE/afsprk_nl.tfstate\"
+    key            = \"$S3_WORKSPACE/$S3_WORKSPACE.tfstate\"
     region         = \"eu-central-1\"
     dynamodb_table = \"$PROJECT-dev-terraform-backends-statefile-locks\"
     encrypt        = true
