@@ -7,6 +7,8 @@ function throw_exception {
   exit 1
 }
 
+trap throw_exception ERR
+
 # Configure backend and exit early if on CI environment
 #
 if [[ "$CI" != "" || "$1" == "cicd" ]];then
@@ -56,10 +58,10 @@ if [[ "$AWS_SESSION" == "" ]]; then
 fi
 
 if [ -z "$1" ];then
-  throw_exception "Please provide the project name as the first argument (e.g. 'web'
-  ℹ️  Hint: It's the firs bit of a bucket ending with '-dev-terraform-backends'. Here's a listing of all the buckets in this account:
+  throw_exception "Please provide the project name as the first argument (e.g. 'web')
+ℹ️  Hint: It's the firs bit of a bucket ending with '-dev-terraform-backends'. Here's a listing of all the buckets in this account:
 
-  $(aws --profile "$AWS_PROFILE" | jq -c '.[] | .[] | try .Name')"
+$(aws --profile "$AWS_PROFILE" s3api list-buckets | jq -c '.[] | .[] | try .Name')"
 fi
 PROJECT=$1
 BUCKET="$PROJECT-dev-terraform-backends"
@@ -67,7 +69,7 @@ BUCKET="$PROJECT-dev-terraform-backends"
 if [ -z "$2" ];then
   throw_exception "Please provide one of these for the 'workspace' name as the second argument:
 ℹ️
-$(aws --profile "$AWS_PROFILE" s3 ls "s3://$BUCKET/")"
+$(aws --profile "$AWS_PROFILE" s3 ls "s3://$BUCKET/" | sed 's/PRE //' | sed 's/\///')"
 fi
 S3_WORKSPACE=$2
 
