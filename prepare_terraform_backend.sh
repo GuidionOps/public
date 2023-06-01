@@ -3,7 +3,7 @@
 set -e
 
 function throw_exception {
-  echo "☠️  ${1:-"Unknown Error"}" 1>&2
+  echo "☠️  ${1:-"Uncaught Error: The line above may give some clues"}" 1>&2
   exit 1
 }
 
@@ -28,7 +28,7 @@ fi
 # First some sanity checks :)
 #
 if [[ $(which leapp) == "" ]]; then
-  throw_exception 'Please install the Leapp CLI: https://docs.leapp.cloud/latest/cli/'
+  throw_exception 'Please install the Leapp CLI:\nbrew install leapp\nbrew install leapp-cli'
 fi
 
 LEAPP_SESSION_NAME=$(leapp session list --output json | jq -c '.[] | select(.status == "active")' | jq -r '.sessionName')
@@ -42,9 +42,10 @@ if [[ "$AWS_PROFILE" == "" ]]; then
   throw_exception "Incredibly, you have a Leapp session, but AWS is somehow not configured. This isn't possible"
 fi
 export AWS_PROFILE
+AWS_ACCOUNT=$(aws --output json sts get-caller-identity | jq -r '.Account')
 
 echo "ℹ️  Your current AWS profile is named $AWS_PROFILE"
-echo "ℹ️  The session is for the AWS account '$(aws --output json sts get-caller-identity | jq -r '.Account')'"
+echo "ℹ️  The session is for the AWS account $AWS_ACCOUNT"
 
 # Now that we've checked for sanity, we can begin
 #
@@ -53,22 +54,39 @@ if [[ "$AWS_SESSION" == "" ]]; then
   throw_exception 'Something went wrong whilst trying to get your current AWS session. Are you connected to LEAPP? Is this a CI environment?'
 fi
 
+# Handle project not being given as first argument
 if [ -z "$1" ];then
+  BUCKET_LISTING=$(aws s3api list-buckets --output json | jq -r -c '.[] | .[] | try .Name')
+
   throw_exception "Please provide the project name as the first argument (e.g. 'web')
 ℹ️  Hint: It's the firs bit of a bucket ending with '-dev-terraform-backends'. Here's a listing of all the buckets in this account:
 
-$(aws s3api list-buckets --output json | jq -c '.[] | .[] | try .Name')"
+$BUCKET_LISTING"
 fi
 PROJECT=$1
 BUCKET="$PROJECT-dev-terraform-backends"
 
+# Do a soft check on AWS account name not matching project name
+ACCOUNT_ALIAS=$(aws --output json iam list-account-aliases | jq -r '.AccountAliases[0]')
+if ! [[ "$ACCOUNT_ALIAS" =~ .*$PROJECT.* ]];then
+  echo "⚠️  🤖 DANGER, WILL ROBINSON! The project name isn't in the AWS account name. Proceeding, but please make sure this is the correct AWS account:
+Account alias:  $ACCOUNT_ALIAS
+Account number: $AWS_ACCOUNT
+"
+fi
+
+# Handle 'workspace' name (application name) not being given as second argument
+BUCKET_CONTENTS=$(aws s3 ls "s3://$BUCKET/") # Done in two parts so this can be caught by the trap
+WORKSPACE_LISTING=$(echo "$BUCKET_CONTENTS" | sed 's/PRE //' | sed 's/\///')
 if [ -z "$2" ];then
   throw_exception "Please provide one of these for the 'workspace' name as the second argument:
 ℹ️
-$(aws s3 ls "s3://$BUCKET/" | sed 's/PRE //' | sed 's/\///')"
+$WORKSPACE_LISTING"
 fi
 S3_WORKSPACE=$2
 
+# Explicit check not needed here, since the raw command will yield an informative
+# error for the trap
 aws s3 cp "s3://$BUCKET/$S3_WORKSPACE/terraform.tfvars" .
 echo "🤘 Copied variables file to terraform.tfvars"
 
