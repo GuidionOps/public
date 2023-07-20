@@ -59,7 +59,7 @@ if [ -z "$1" ];then
   BUCKET_LISTING=$(aws s3api list-buckets --output json | jq -r -c '.[] | .[] | try .Name')
 
   throw_exception "Please provide the project name as the first argument (e.g. 'web')
-ℹ️  Hint: It's the firs bit of a bucket ending with '-dev-terraform-backends'. Here's a listing of all the buckets in this account:
+ℹ️  Hint: It's the first bit of a bucket ending with '-dev-terraform-backends'. Here's a listing of all the buckets in this account:
 
 $BUCKET_LISTING"
 fi
