@@ -28,6 +28,12 @@ fi
 # First some sanity checks :)
 #
 
+AWS_PROFILE=$(sed -nE 's/\[(.*)\]/\1/p' < ~/.aws/credentials)
+if [[ "$AWS_PROFILE" == "" ]]; then
+  throw_exception "AWS credentials are not configured, which probably means you don't have a Leapp session"
+fi
+export AWS_PROFILE
+
 # We would like to look at session names and AWS accounts, but since we're not
 # doing that yet, the Leapp CLI is optional
 if [[ $(which leapp) != "" ]]; then
@@ -45,11 +51,6 @@ else
   echo "⚠️  Skipped checking the Leapp session, because Leapp CLI is not available"
 fi
 
-AWS_PROFILE=$(sed -nE 's/\[(.*)\]/\1/p' < ~/.aws/credentials)
-if [[ "$AWS_PROFILE" == "" ]]; then
-  throw_exception "AWS credentials are not configured, which probably means you don't have a Leapp session"
-fi
-export AWS_PROFILE
 AWS_ACCOUNT=$(aws --output json sts get-caller-identity | jq -r '.Account')
 
 echo "ℹ️  Your current AWS profile is named $AWS_PROFILE"
