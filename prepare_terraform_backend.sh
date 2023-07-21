@@ -27,19 +27,27 @@ fi
 
 # First some sanity checks :)
 #
-if [[ $(which leapp) == "" ]]; then
-  throw_exception 'Please install the Leapp CLI:\nbrew install leapp\nbrew install leapp-cli'
-fi
 
-LEAPP_SESSION_NAME=$(leapp session list --output json | jq -c '.[] | select(.status == "active")' | jq -r '.sessionName')
-if [[ "$LEAPP_SESSION_NAME" == "" ]];then
-  throw_exception "You don't seem to have an active Leapp session. Start Leapp and start a session"
+# We would like to look at session names and AWS accounts, but since we're not
+# doing that yet, the Leapp CLI is optional
+if [[ $(which leapp) != "" ]]; then
+  LEAPP_SESSION_NAME=$(leapp session list --output json | jq -c '.[] | select(.status == "active")' | jq -r '.sessionName')
+  if [[ "$LEAPP_SESSION_NAME" == "" ]];then
+    throw_exception "You don't seem to have an active Leapp session. Start Leapp and start a session"
+  fi
+  echo "ℹ️  Your current Leapp session is $LEAPP_SESSION_NAME"
+
+  AWS_SESSION=$(leapp session current --profile "$AWS_PROFILE" | jq -r '.alias')
+  if [[ "$AWS_SESSION" == "" ]]; then
+    throw_exception 'Something went wrong whilst trying to get your current AWS session. Are you connected to LEAPP? Is this a CI environment?'
+  fi
+else
+  echo "⚠️  Skipped checking the Leapp session, because Leapp CLI is not available"
 fi
-echo "ℹ️  Your current Leapp session is $LEAPP_SESSION_NAME"
 
 AWS_PROFILE=$(sed -nE 's/\[(.*)\]/\1/p' < ~/.aws/credentials)
 if [[ "$AWS_PROFILE" == "" ]]; then
-  throw_exception "Incredibly, you have a Leapp session, but AWS is somehow not configured. This isn't possible"
+  throw_exception "AWS credentials are not configured, which probably means you don't have a Leapp session"
 fi
 export AWS_PROFILE
 AWS_ACCOUNT=$(aws --output json sts get-caller-identity | jq -r '.Account')
@@ -49,10 +57,6 @@ echo "ℹ️  The session is for the AWS account $AWS_ACCOUNT"
 
 # Now that we've checked for sanity, we can begin
 #
-AWS_SESSION=$(leapp session current --profile "$AWS_PROFILE" | jq -r '.alias')
-if [[ "$AWS_SESSION" == "" ]]; then
-  throw_exception 'Something went wrong whilst trying to get your current AWS session. Are you connected to LEAPP? Is this a CI environment?'
-fi
 
 # Handle project not being given as first argument
 if [ -z "$1" ];then
