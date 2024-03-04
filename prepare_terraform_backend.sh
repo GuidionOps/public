@@ -38,11 +38,10 @@ case "${unameOut}" in
     MSYS_NT*)   OS_ENV=Git;;
     *)          OS_ENV="UNKNOWN:${unameOut}"
 esac
-echo "${OS_ENV}"
 
 # Account for Windows
 echo "ℹ️  Running in $OS_ENV. Will attempt to do the right thing in this environment"
-if [[ "$OS_ENV" == "Cygwin" ]]; then
+if [[ "$OS_ENV" == "Cygwin" ]] || [[ "$OS_ENV" == "MINGW" ]]; then
   HOME_DIRECTORY=$HOMEPATH
 else
   HOME_DIRECTORY=$HOME
