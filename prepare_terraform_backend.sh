@@ -28,9 +28,30 @@ fi
 # First some sanity checks :)
 #
 
-AWS_PROFILE=$(sed -nE 's/\[(.*)\]/\1/p' < ~/.aws/credentials)
+# Need to know which OS we're on
+unameOut="$(uname -s)"
+case "${unameOut}" in
+    Linux*)     OS_ENV=Linux;;
+    Darwin*)    OS_ENV=Mac;;
+    CYGWIN*)    OS_ENV=Cygwin;;
+    MINGW*)     OS_ENV=MinGw;;
+    MSYS_NT*)   OS_ENV=Git;;
+    *)          OS_ENV="UNKNOWN:${unameOut}"
+esac
+echo "${OS_ENV}"
+
+# Account for Windows
+echo "ℹ️  Running in $OS_ENV. Will attempt to do the right thing in this environment"
+if [[ "$OS_ENV" == "Cygwin" ]]; then
+  HOME_DIRECTORY=$HOMEPATH
+else
+  HOME_DIRECTORY=$HOME
+fi
+
+# Test for AWS credentials
+AWS_PROFILE=$(sed -nE 's/\[(.*)\]/\1/p' < "$HOME_DIRECTORY/.aws/credentials")
 if [[ "$AWS_PROFILE" == "" ]]; then
-  throw_exception "AWS credentials are not configured, which probably means you don't have a Leapp session"
+  throw_exception "AWS credentials are not configured, which probably means you don't have a Leapp session. If you're on Windows, you can bypass this check with "
 fi
 export AWS_PROFILE
 
