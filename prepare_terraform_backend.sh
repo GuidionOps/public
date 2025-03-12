@@ -110,6 +110,18 @@ $WORKSPACE_LISTING"
 fi
 S3_WORKSPACE=$2
 
+# If $3 is provided, use it as a namespace for the statefile
+if [ -n "$3" ];then
+  echo "ℹ️ Third argument provided ('$3'). This will be used to namespace your statefile"
+  echo "ℹ️ Locking will be disabled, since this workspace is namespaced"
+  STATEFILE="$S3_WORKSPACE-$3"
+  LOCKING_MECHANISM=""
+else
+  STATEFILE=$S3_WORKSPACE
+  LOCKING_MECHANISM="dynamodb_table = \"$PROJECT-dev-terraform-backends-statefile-locks\""
+fi
+
+
 # Explicit check not needed here, since the raw command will yield an informative
 # error for the trap
 aws s3 cp "s3://$BUCKET/$S3_WORKSPACE/terraform.tfvars" .
@@ -120,9 +132,9 @@ terraform {
   backend \"s3\" {
     profile        = \"$AWS_PROFILE\"
     bucket         = \"$BUCKET\"
-    key            = \"$S3_WORKSPACE/$S3_WORKSPACE.tfstate\"
+    key            = \"$S3_WORKSPACE/$STATEFILE.tfstate\"
     region         = \"eu-central-1\"
-    dynamodb_table = \"$PROJECT-dev-terraform-backends-statefile-locks\"
+    $LOCKING_MECHANISM
     encrypt        = true
   }
 }
