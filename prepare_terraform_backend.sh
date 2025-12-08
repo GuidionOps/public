@@ -81,7 +81,7 @@ echo "ℹ️  The session is for the AWS account $AWS_ACCOUNT"
 
 # Handle project not being given as first argument
 if [ -z "$1" ];then
-  BUCKET_LISTING=$(aws s3api list-buckets --output json | jq -r -c '.[] | .[] | try .Name')
+  BUCKET_LISTING=$(aws s3api list-buckets --output json | jq -r '.Buckets[] | .Name')
 
   throw_exception "Please provide the project name as the first argument (e.g. 'web')
 ℹ️  Hint: It's the first bit of a bucket ending with '-dev-terraform-backends'. Here's a listing of all the buckets in this account:
