@@ -121,7 +121,7 @@ select_workspace() {
   WORKSPACE_TO_SET=$1
 
   WORKSPACES=$(terraform workspace list)
-  if ! echo "$WORKSPACES" | grep -q "$WORKSPACE_TO_SET"; then
+  if ! echo "$WORKSPACES" | grep -E "^[ *]*${WORKSPACE_TO_SET}$"; then
     terraform workspace new "$WORKSPACE_TO_SET"
   fi
   terraform workspace select "$WORKSPACE_TO_SET"
@@ -146,8 +146,8 @@ echo "🤘 Created backend (S3) configuration as 'backend.tf'"
 # the user, and add the 'name_prefix' to the Terraform variables for the modules
 # to use in their resource naming
 if [ "$3" == "namespaced" ];then
+  select_workspace "$USER" > /dev/null
   echo "ℹ️ You are in your own personal workspace ($USER)"
-  select_workspace "$USER"
 
   echo "
 name_prefix = \"$USER\"
@@ -155,8 +155,8 @@ name_prefix = \"$USER\"
   echo "🤘 Added your username for resource namespacing"
 # By default, use the default (shared) workspace
 else
+  select_workspace "default" > /dev/null
   echo "ℹ️ You are in the default (shared) workspace"
-  select_workspace "default"
 fi
 
 
