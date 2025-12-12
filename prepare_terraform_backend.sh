@@ -109,7 +109,6 @@ if [ -z "$2" ];then
 $WORKSPACE_LISTING"
 fi
 S3_WORKSPACE=$2
-STATEFILE=$S3_WORKSPACE
 
 # Explicit check not needed here, since the raw command will yield an informative
 # error for the trap
@@ -133,7 +132,7 @@ terraform {
   backend \"s3\" {
     profile        = \"$AWS_PROFILE\"
     bucket         = \"$BUCKET\"
-    key            = \"$S3_WORKSPACE/$STATEFILE.tfstate\"
+    key            = \"$S3_WORKSPACE/$S3_WORKSPACE.tfstate\"
     region         = \"eu-central-1\"
     dynamodb_table = \"$PROJECT-dev-terraform-backends-statefile-locks\"
     encrypt        = true
@@ -141,6 +140,9 @@ terraform {
 }
 " > backend.tf
 echo "🤘 Created backend (S3) configuration as 'backend.tf'"
+
+echo "ℹ️ Running terraform init in order to persist later workspace selection"
+terraform init
 
 # If 'namespaced' is given as the third argument run in a workspace named after
 # the user, and add the 'name_prefix' to the Terraform variables for the modules
@@ -164,7 +166,6 @@ if ! [[ -f ".gitignore" ]]; then
   touch .gitignore
   echo "🤘 Created .gitignore file, because one didn't exist"
 fi
-
 IGNORED_FILES=( "node_modules" "dist" "coverage/" ".npmrc" ".DS_Store" "config/local.json" ".terraform" ".terraform.lock.hcl" "terraform.tfstate*" "*.tfvars" "backend.tf")
 for this_filename in "${IGNORED_FILES[@]}"
 do :
