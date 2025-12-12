@@ -109,24 +109,25 @@ if [ -z "$2" ];then
 $WORKSPACE_LISTING"
 fi
 S3_WORKSPACE=$2
-
-# If $3 is provided, use it as a namespace for the statefile
-if [ -n "$3" ];then
-  echo "ℹ️ Third argument provided ('$3'). This will be used to namespace your statefile"
-  echo "ℹ️ Locking will be disabled, since this workspace is namespaced"
-  STATEFILE="$S3_WORKSPACE-$3"
-  LOCKING_MECHANISM=""
-else
-  STATEFILE=$S3_WORKSPACE
-  LOCKING_MECHANISM="dynamodb_table = \"$PROJECT-dev-terraform-backends-statefile-locks\""
-fi
-
+STATEFILE=$S3_WORKSPACE
 
 # Explicit check not needed here, since the raw command will yield an informative
 # error for the trap
 aws s3 cp "s3://$BUCKET/$S3_WORKSPACE/terraform.tfvars" .
 echo "🤘 Copied variables file to terraform.tfvars"
 
+# Function for changing Terraform workspaces
+select_workspace() {
+  WORKSPACE_TO_SET=$1
+
+  WORKSPACES=$(terraform workspace list)
+  if ! echo "$WORKSPACES" | grep -q "$WORKSPACE_TO_SET"; then
+    terraform workspace new "$WORKSPACE_TO_SET"
+  fi
+  terraform workspace select "$WORKSPACE_TO_SET"
+}
+
+# Write the backend file
 echo "
 terraform {
   backend \"s3\" {
@@ -134,12 +135,30 @@ terraform {
     bucket         = \"$BUCKET\"
     key            = \"$S3_WORKSPACE/$STATEFILE.tfstate\"
     region         = \"eu-central-1\"
-    $LOCKING_MECHANISM
+    dynamodb_table = \"$PROJECT-dev-terraform-backends-statefile-locks\"
     encrypt        = true
   }
 }
 " > backend.tf
 echo "🤘 Created backend (S3) configuration as 'backend.tf'"
+
+# If 'namespaced' is given as the third argument run in a workspace named after
+# the user, and add the 'name_prefix' to the Terraform variables for the modules
+# to use in their resource naming
+if [ "$3" == "namespaced" ];then
+  echo "ℹ️ You are in your own personal workspace ($USER)"
+  select_workspace "$USER"
+
+  echo "
+name_prefix = \"$USER\"
+  " >> terraform.tfvars
+  echo "🤘 Added your username for resource namespacing"
+# By default, use the default (shared) workspace
+else
+  echo "ℹ️ You are in the default (shared) workspace"
+  select_workspace "default"
+fi
+
 
 if ! [[ -f ".gitignore" ]]; then
   touch .gitignore
