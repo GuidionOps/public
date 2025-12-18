@@ -145,14 +145,14 @@ echo "ℹ️ Running terraform init in order to persist later workspace selectio
 terraform init
 
 # If 'namespaced' is given as the third argument run in a workspace named after
-# the user, and add the 'name_prefix' to the Terraform variables for the modules
+# the user, and add the 'name_suffix' to the Terraform variables for the modules
 # to use in their resource naming
 if [ "$3" == "namespaced" ];then
   select_workspace "$USER" > /dev/null
   echo "ℹ️ You are in your own personal workspace ($USER)"
 
   echo "
-name_prefix = \"$USER\"
+name_suffix = \"$USER\"
   " >> terraform.tfvars
   echo "🤘 Added your username for resource namespacing"
 # By default, use the default (shared) workspace
