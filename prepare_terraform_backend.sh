@@ -104,7 +104,6 @@ echo "🤘 Copied variables file to terraform.tfvars"
 echo "
 terraform {
   backend \"s3\" {
-    profile        = \"$AWS_PROFILE\"
     bucket         = \"$BUCKET\"
     key            = \"$S3_WORKSPACE/$S3_WORKSPACE.tfstate\"
     region         = \"eu-central-1\"
