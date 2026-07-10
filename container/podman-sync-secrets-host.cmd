@@ -2,8 +2,6 @@
 @echo off
 setlocal
 
-rem Dummy shared-repo example:
-rem set "PODMAN_SYNC_SECRETS_BASE_URL=https://raw.githubusercontent.com/GuidionOps/public/container/container"
 if "%PODMAN_SYNC_SECRETS_BASE_URL%"=="" set "PODMAN_SYNC_SECRETS_BASE_URL=https://raw.githubusercontent.com/GuidionOps/public/container/container"
 
 set "SYNC_SCRIPT=%TEMP%\podman-sync-secrets.ps1"
@@ -16,8 +14,6 @@ __POSIX__
 
 set -eu
 
-# Dummy shared-repo example:
-# PODMAN_SYNC_SECRETS_BASE_URL=https://raw.githubusercontent.com/GuidionOps/public/container/container
 BASE_URL="${PODMAN_SYNC_SECRETS_BASE_URL:-https://raw.githubusercontent.com/GuidionOps/public/container/container}"
 SCRIPT_FILE="${TMPDIR:-/tmp}/podman-sync-secrets-$$.sh"
 
