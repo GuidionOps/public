@@ -3,8 +3,8 @@
 setlocal
 
 rem Dummy shared-repo example:
-rem set "PODMAN_SYNC_SECRETS_BASE_URL=https://raw.githubusercontent.com/guidion-digital/devcontainer-tools/v1.0.0/remote"
-if "%PODMAN_SYNC_SECRETS_BASE_URL%"=="" set "PODMAN_SYNC_SECRETS_BASE_URL=https://raw.githubusercontent.com/guidion-digital/devcontainer-tools/v1.0.0/remote"
+rem set "PODMAN_SYNC_SECRETS_BASE_URL=https://raw.githubusercontent.com/GuidionOps/public/container/container"
+if "%PODMAN_SYNC_SECRETS_BASE_URL%"=="" set "PODMAN_SYNC_SECRETS_BASE_URL=https://raw.githubusercontent.com/GuidionOps/public/container/container"
 
 set "SYNC_SCRIPT=%TEMP%\podman-sync-secrets.ps1"
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference = 'Stop'; Invoke-WebRequest -UseBasicParsing -Uri '%PODMAN_SYNC_SECRETS_BASE_URL%/podman-sync-secrets.ps1' -OutFile '%SYNC_SCRIPT%'"
@@ -17,8 +17,8 @@ __POSIX__
 set -eu
 
 # Dummy shared-repo example:
-# PODMAN_SYNC_SECRETS_BASE_URL=https://raw.githubusercontent.com/guidion-digital/devcontainer-tools/v1.0.0/remote
-BASE_URL="${PODMAN_SYNC_SECRETS_BASE_URL:-https://raw.githubusercontent.com/guidion-digital/devcontainer-tools/v1.0.0/remote}"
+# PODMAN_SYNC_SECRETS_BASE_URL=https://raw.githubusercontent.com/GuidionOps/public/container/container
+BASE_URL="${PODMAN_SYNC_SECRETS_BASE_URL:-https://raw.githubusercontent.com/GuidionOps/public/container/container}"
 SCRIPT_FILE="${TMPDIR:-/tmp}/podman-sync-secrets-$$.sh"
 
 cleanup() {
