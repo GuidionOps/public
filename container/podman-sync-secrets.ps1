@@ -18,12 +18,6 @@ function Require-Command {
     }
 }
 
-function Test-SupportedConfigKey {
-    param([string]$Key)
-
-    return $Key -in @("AWS_REGION", "AWS_SECRET_NAMESPACE", "PODMAN_SECRET_PREFIX", "PODMAN_SECRET_TYPE")
-}
-
 function Resolve-RepoRoot {
     $startDirectory = $env:PODMAN_REPO_ROOT
     if ([string]::IsNullOrWhiteSpace($startDirectory)) {
@@ -102,13 +96,6 @@ function Read-Config {
 
         $key = $Matches[1]
         $value = $Matches[2]
-
-        if (-not (Test-SupportedConfigKey $key)) {
-            Fail ("Unsupported config key at {0}:{1}: {2}" -f $Path, $lineNumber, $key)
-        }
-        if ($config.ContainsKey($key)) {
-            Fail ("Duplicate config key at {0}:{1}: {2}" -f $Path, $lineNumber, $key)
-        }
 
         if ($value.Length -ge 2) {
             $first = $value.Substring(0, 1)

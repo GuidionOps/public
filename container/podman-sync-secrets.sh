@@ -104,21 +104,10 @@ normalize_env_name() {
   printf '%s' "${normalized}"
 }
 
-is_supported_config_key() {
-  case "$1" in
-    AWS_REGION|AWS_SECRET_NAMESPACE|PODMAN_SECRET_PREFIX|PODMAN_SECRET_TYPE)
-      return 0
-      ;;
-  esac
-
-  return 1
-}
-
 load_config_file() {
   local config_file="$1"
   local line_number=0
-  local line key value loaded_key
-  local -a loaded_keys=()
+  local line key value
 
   while IFS= read -r line || [[ -n "${line}" ]]; do
     line_number=$((line_number + 1))
@@ -129,11 +118,6 @@ load_config_file() {
 
     key="${line%%=*}"
     value="${line#*=}"
-    is_supported_config_key "${key}" || fail "Unsupported config key at ${config_file}:${line_number}: ${key}"
-
-    for loaded_key in "${loaded_keys[@]}"; do
-      [[ "${loaded_key}" != "${key}" ]] || fail "Duplicate config key at ${config_file}:${line_number}: ${key}"
-    done
 
     if [[ ${#value} -ge 2 ]]; then
       if [[ "${value:0:1}" == '"' && "${value: -1}" == '"' ]]; then
@@ -143,8 +127,13 @@ load_config_file() {
       fi
     fi
 
-    printf -v "${key}" '%s' "${value}"
-    loaded_keys+=("${key}")
+    # This config file may contain settings for other development tools.
+    # Only assign the values that this script consumes.
+    case "${key}" in
+      AWS_REGION|AWS_SECRET_NAMESPACE|PODMAN_SECRET_PREFIX|PODMAN_SECRET_TYPE)
+        printf -v "${key}" '%s' "${value}"
+        ;;
+    esac
   done < "${config_file}"
 }
 
