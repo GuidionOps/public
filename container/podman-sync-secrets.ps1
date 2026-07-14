@@ -104,10 +104,10 @@ function Read-Config {
         $value = $Matches[2]
 
         if (-not (Test-SupportedConfigKey $key)) {
-            Fail "Unsupported config key at ${Path}:$lineNumber: $key"
+            Fail ("Unsupported config key at {0}:{1}: {2}" -f $Path, $lineNumber, $key)
         }
         if ($config.ContainsKey($key)) {
-            Fail "Duplicate config key at ${Path}:$lineNumber: $key"
+            Fail ("Duplicate config key at {0}:{1}: {2}" -f $Path, $lineNumber, $key)
         }
 
         if ($value.Length -ge 2) {
