@@ -82,19 +82,59 @@ function Require-Config {
     return [string]$Config[$Key]
 }
 
+function Get-AwsCredentialHelp {
+    param([string]$CommandOutput)
+
+    $patterns = @(
+        "Error when retrieving token from sso",
+        "The SSO session associated with this profile has expired or is otherwise invalid",
+        "Token has expired and refresh failed",
+        "Unable to locate credentials",
+        "Unable to find credentials",
+        "NoCredentialsError",
+        "ExpiredToken",
+        "ExpiredTokenException",
+        "InvalidClientTokenId",
+        "UnrecognizedClientException"
+    )
+
+    foreach ($pattern in $patterns) {
+        if ($CommandOutput -like "*$pattern*") {
+            return "AWS credentials were not found or have expired. Run: aws sso login --sso-session guidion"
+        }
+    }
+
+    return $null
+}
+
 function Invoke-Checked {
     param(
         [string]$Command,
         [string[]]$Arguments
     )
 
-    $output = & $Command @Arguments
-    if ($LASTEXITCODE -ne 0) {
+    $output = & $Command @Arguments 2>&1
+    $exitCode = $LASTEXITCODE
+    $renderedOutput = ($output | ForEach-Object { $_.ToString() }) -join [Environment]::NewLine
+
+    if ($exitCode -ne 0) {
+        if ($Command -eq "aws") {
+            $credentialHelp = Get-AwsCredentialHelp $renderedOutput
+            if ($null -ne $credentialHelp) {
+                Fail $credentialHelp
+            }
+        }
+
         $commandLine = @($Command) + $Arguments
-        Fail "Command failed: $($commandLine -join ' ')"
+
+        if ([string]::IsNullOrWhiteSpace($renderedOutput)) {
+            Fail "Command failed: $($commandLine -join ' ')"
+        }
+
+        Fail "Command failed: $($commandLine -join ' ')`n$renderedOutput"
     }
 
-    return $output
+    return $renderedOutput
 }
 
 function Save-PodmanSecret {

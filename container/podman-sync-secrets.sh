@@ -39,6 +39,30 @@ require_command() {
   command -v "${command_name}" >/dev/null 2>&1 || fail "Missing required command: ${command_name}"
 }
 
+is_aws_credentials_error() {
+  local output="$1"
+
+  case "${output}" in
+    *"Error when retrieving token from sso"*|    *"The SSO session associated with this profile has expired or is otherwise invalid"*|    *"Token has expired and refresh failed"*|    *"Unable to locate credentials"*|    *"Unable to find credentials"*|    *"NoCredentialsError"*|    *"ExpiredToken"*|    *"ExpiredTokenException"*|    *"InvalidClientTokenId"*|    *"UnrecognizedClientException"*)
+      return 0
+      ;;
+  esac
+
+  return 1
+}
+
+run_aws() {
+  local output status
+  set +e
+  output="$(aws "$@" 2>&1)"
+  status=$?
+  set -e
+
+  (( status == 0 )) && { printf '%s' "${output}"; return 0; }
+  is_aws_credentials_error "${output}" && fail "AWS credentials were not found or have expired. Run: aws sso login --sso-session guidion"
+  fail "Command failed: aws $*${output:+$'\n'${output}}"
+}
+
 resolve_podman_command() {
   if [[ -n "${PODMAN_CMD:-}" ]]; then
     command -v "${PODMAN_CMD}" >/dev/null 2>&1 || fail "Configured PODMAN_CMD not found on PATH: ${PODMAN_CMD}"
@@ -144,7 +168,7 @@ secret_names=()
 while IFS= read -r secret_name; do
   secret_names+=("${secret_name}")
 done < <(
-  aws secretsmanager list-secrets \
+  run_aws secretsmanager list-secrets \
     --region "${AWS_REGION}" \
     --filters "Key=name,Values=${secret_prefix}" \
     --query 'SecretList[].Name' \
@@ -182,7 +206,7 @@ for secret_name in "${secret_names[@]}"; do
   podman_secret_name="${PODMAN_SECRET_PREFIX}__${env_name}"
 
   version_stages="$(
-    aws secretsmanager describe-secret \
+    run_aws secretsmanager describe-secret \
       --region "${AWS_REGION}" \
       --secret-id "${secret_name}" \
       --query 'VersionIdsToStages' \
@@ -196,7 +220,7 @@ for secret_name in "${secret_names[@]}"; do
   fi
 
   has_secret_string="$(
-    aws secretsmanager get-secret-value \
+    run_aws secretsmanager get-secret-value \
       --region "${AWS_REGION}" \
       --secret-id "${secret_name}" \
       --query "SecretString != \`null\`" \
@@ -206,7 +230,7 @@ for secret_name in "${secret_names[@]}"; do
   [[ "${has_secret_string}" == "True" ]] || fail "Secret '${secret_name}' does not contain a SecretString value"
 
   secret_value="$(
-    aws secretsmanager get-secret-value \
+    run_aws secretsmanager get-secret-value \
       --region "${AWS_REGION}" \
       --secret-id "${secret_name}" \
       --query 'SecretString' \
