@@ -15,6 +15,13 @@ The wrapper caches its downloaded PowerShell and Bash payloads at fixed paths
 under `.devcontainer/.cache/`, overwriting them on each run. Do not reintroduce
 random operating-system temporary paths or extra path variables.
 
+Calling repositories must create and ignore `.devcontainer/.cache/` before
+`initializeCommand` runs. The wrapper is called from the repository root.
+
+`initializeCommand` only creates or replaces Podman secrets; its stdout cannot
+modify `devcontainer.json`. Calling repositories must explicitly add every
+required secret to `runArgs` using `source=<PODMAN_SECRET_PREFIX>__<NORMALIZED_SECRET_KEY>,type=env,target=<NORMALIZED_SECRET_KEY>`.
+
 For PowerShell edits:
 
 - Keep script text ASCII-only.
