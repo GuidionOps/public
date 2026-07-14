@@ -113,8 +113,19 @@ function Invoke-Checked {
         [string[]]$Arguments
     )
 
-    $output = & $Command @Arguments 2>&1
-    $exitCode = $LASTEXITCODE
+    # Native stderr is represented as an ErrorRecord by Windows PowerShell.
+    # Do not let the script-wide `Stop` preference throw before we can inspect
+    # the native process exit code and render its diagnostic below.
+    $previousErrorActionPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = "Continue"
+        $output = & $Command @Arguments 2>&1
+        $exitCode = $LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+
     $renderedOutput = ($output | ForEach-Object { $_.ToString() }) -join [Environment]::NewLine
 
     if ($exitCode -ne 0) {
