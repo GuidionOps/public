@@ -1,4 +1,7 @@
 node_modules
+.agents/
+.codex/
+.vscode/
 dist
 coverage/
 .npmrc
