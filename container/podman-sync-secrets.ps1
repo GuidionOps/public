@@ -181,7 +181,7 @@ try {
         $configFile = $env:PODMAN_SECRET_CONFIG
     }
     if ([string]::IsNullOrWhiteSpace($configFile)) {
-        $configFile = Join-Path $repoRoot ".devcontainer/podman-secrets.conf"
+        $configFile = Join-Path $repoRoot ".devcontainer/podman-config.conf"
     }
 
     if (-not (Test-Path -LiteralPath $configFile -PathType Leaf)) {

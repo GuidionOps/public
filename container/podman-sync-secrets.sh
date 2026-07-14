@@ -23,7 +23,7 @@ resolve_repo_root() {
   search_dir="${PODMAN_REPO_ROOT:-$(pwd -P)}"
 
   while [[ "${search_dir}" != "/" ]]; do
-    if [[ -d "${search_dir}/.git" && -f "${search_dir}/.devcontainer/podman-secrets.conf" ]]; then
+    if [[ -d "${search_dir}/.git" && -f "${search_dir}/.devcontainer/podman-config.conf" ]]; then
       printf '%s' "${search_dir}"
       return
     fi
@@ -145,7 +145,7 @@ done
 
 if [[ -z "${CONFIG_FILE}" ]]; then
   REPO_ROOT="$(resolve_repo_root)"
-  CONFIG_FILE="${REPO_ROOT}/.devcontainer/podman-secrets.conf"
+  CONFIG_FILE="${REPO_ROOT}/.devcontainer/podman-config.conf"
 fi
 
 [[ -f "${CONFIG_FILE}" ]] || fail "Config file not found: ${CONFIG_FILE}"
