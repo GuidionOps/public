@@ -295,6 +295,17 @@ try {
     Write-Output ($secretArgs -join " ")
 }
 catch {
-    Log "ERROR: $($_.Exception.Message)"
+    $message = $_.Exception.Message
+    if ([string]::IsNullOrWhiteSpace($message)) {
+        $message = $_.ToString()
+    }
+    if ([string]::IsNullOrWhiteSpace($message)) {
+        $message = "An unknown error occurred while synchronizing Podman secrets."
+    }
+
+    Log "ERROR: $message"
+    if (-not [string]::IsNullOrWhiteSpace($_.ScriptStackTrace)) {
+        Log "Stack trace: $($_.ScriptStackTrace)"
+    }
     exit 1
 }
