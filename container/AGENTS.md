@@ -11,6 +11,10 @@ must select the host interpreter explicitly; do not use `windows-command || sh
 script` as OS detection, because `||` also runs the POSIX fallback after a real
 Windows synchronization failure and hides the useful error.
 
+The wrapper caches its downloaded PowerShell and Bash payloads at fixed paths
+under `.devcontainer/.cache/`, overwriting them on each run. Do not reintroduce
+random operating-system temporary paths or extra path variables.
+
 For PowerShell edits:
 
 - Keep script text ASCII-only.

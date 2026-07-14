@@ -2,35 +2,32 @@
 @echo off
 setlocal
 
-if not defined PODMAN_SYNC_SECRETS_BASE_URL set "PODMAN_SYNC_SECRETS_BASE_URL=https://raw.githubusercontent.com/GuidionOps/public/container/container"
+if not exist ".devcontainer\.cache\" (
+  echo [podman-sync-secrets] ERROR: Missing required directory: .devcontainer\.cache 1>&2
+  exit /b 1
+)
 
-set "SYNC_SCRIPT=%TEMP%\podman-sync-secrets-%RANDOM%%RANDOM%.ps1"
-powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference = 'Stop'; $baseUrl = $env:PODMAN_SYNC_SECRETS_BASE_URL.TrimEnd('/'); Invoke-WebRequest -UseBasicParsing -Uri ($baseUrl + '/podman-sync-secrets.ps1') -OutFile $env:SYNC_SCRIPT"
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference = 'Stop'; Invoke-WebRequest -UseBasicParsing -Uri 'https://raw.githubusercontent.com/GuidionOps/public/container/container/podman-sync-secrets.ps1' -OutFile '.devcontainer\.cache\podman-sync-secrets.ps1'"
 if errorlevel 1 exit /b %ERRORLEVEL%
 
-powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%SYNC_SCRIPT%" %*
-set "EXIT_CODE=%ERRORLEVEL%"
-del /q "%SYNC_SCRIPT%" >nul 2>&1
-exit /b %EXIT_CODE%
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File ".devcontainer\.cache\podman-sync-secrets.ps1" %*
+exit /b %ERRORLEVEL%
 __POSIX__
 
 set -eu
 
-BASE_URL="${PODMAN_SYNC_SECRETS_BASE_URL:-https://raw.githubusercontent.com/GuidionOps/public/container/container}"
-SCRIPT_FILE="$(mktemp "${TMPDIR:-/tmp}/podman-sync-secrets.XXXXXX")"
-
-cleanup() {
-  rm -f -- "${SCRIPT_FILE}"
-}
-trap cleanup EXIT INT TERM
+if [ ! -d ".devcontainer/.cache" ]; then
+  printf '[podman-sync-secrets] ERROR: Missing required directory: .devcontainer/.cache\n' >&2
+  exit 1
+fi
 
 if command -v curl >/dev/null 2>&1; then
-  curl -fsSL -o "${SCRIPT_FILE}" "${BASE_URL}/podman-sync-secrets.sh"
+  curl -fsSL -o ".devcontainer/.cache/podman-sync-secrets.sh" "https://raw.githubusercontent.com/GuidionOps/public/container/container/podman-sync-secrets.sh"
 elif command -v wget >/dev/null 2>&1; then
-  wget -q -O "${SCRIPT_FILE}" "${BASE_URL}/podman-sync-secrets.sh"
+  wget -q -O ".devcontainer/.cache/podman-sync-secrets.sh" "https://raw.githubusercontent.com/GuidionOps/public/container/container/podman-sync-secrets.sh"
 else
   printf '[podman-sync-secrets] ERROR: Missing required command: curl or wget\n' >&2
   exit 1
 fi
 
-bash "${SCRIPT_FILE}" "$@"
+bash ".devcontainer/.cache/podman-sync-secrets.sh" "$@"
