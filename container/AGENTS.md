@@ -4,6 +4,13 @@
 compatible with Windows PowerShell 5.1 (`powershell.exe`), not only PowerShell
 7+ (`pwsh`). Do not introduce PowerShell 7-only syntax, APIs, or assumptions.
 
+`podman-sync-secrets-host.cmd` is intentionally a Cmd/POSIX-shell polyglot: the
+same downloaded file must run on Windows hosts and on Linux/macOS hosts before
+the dev container exists. Preserve both sections when editing it. The caller
+must select the host interpreter explicitly; do not use `windows-command || sh
+script` as OS detection, because `||` also runs the POSIX fallback after a real
+Windows synchronization failure and hides the useful error.
+
 For PowerShell edits:
 
 - Keep script text ASCII-only.
