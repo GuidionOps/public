@@ -2,23 +2,25 @@
 @echo off
 setlocal
 
-if "%PODMAN_SYNC_SECRETS_BASE_URL%"=="" set "PODMAN_SYNC_SECRETS_BASE_URL=https://raw.githubusercontent.com/GuidionOps/public/container/container"
+if not defined PODMAN_SYNC_SECRETS_BASE_URL set "PODMAN_SYNC_SECRETS_BASE_URL=https://raw.githubusercontent.com/GuidionOps/public/container/container"
 
-set "SYNC_SCRIPT=%TEMP%\podman-sync-secrets.ps1"
-powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference = 'Stop'; Invoke-WebRequest -UseBasicParsing -Uri '%PODMAN_SYNC_SECRETS_BASE_URL%/podman-sync-secrets.ps1' -OutFile '%SYNC_SCRIPT%'"
+set "SYNC_SCRIPT=%TEMP%\podman-sync-secrets-%RANDOM%%RANDOM%.ps1"
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference = 'Stop'; $baseUrl = $env:PODMAN_SYNC_SECRETS_BASE_URL.TrimEnd('/'); Invoke-WebRequest -UseBasicParsing -Uri ($baseUrl + '/podman-sync-secrets.ps1') -OutFile $env:SYNC_SCRIPT"
 if errorlevel 1 exit /b %ERRORLEVEL%
 
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%SYNC_SCRIPT%" %*
-exit /b %ERRORLEVEL%
+set "EXIT_CODE=%ERRORLEVEL%"
+del /q "%SYNC_SCRIPT%" >nul 2>&1
+exit /b %EXIT_CODE%
 __POSIX__
 
 set -eu
 
 BASE_URL="${PODMAN_SYNC_SECRETS_BASE_URL:-https://raw.githubusercontent.com/GuidionOps/public/container/container}"
-SCRIPT_FILE="${TMPDIR:-/tmp}/podman-sync-secrets-$$.sh"
+SCRIPT_FILE="$(mktemp "${TMPDIR:-/tmp}/podman-sync-secrets.XXXXXX")"
 
 cleanup() {
-  rm -f "${SCRIPT_FILE}"
+  rm -f -- "${SCRIPT_FILE}"
 }
 trap cleanup EXIT INT TERM
 

@@ -19,19 +19,23 @@ on_error() {
 trap on_error ERR
 
 resolve_repo_root() {
-  local search_dir
-  search_dir="${PODMAN_REPO_ROOT:-$(pwd -P)}"
+  local search_dir start_dir
 
-  while [[ "${search_dir}" != "/" ]]; do
+  start_dir="${PODMAN_REPO_ROOT:-$(pwd -P)}"
+  [[ -d "${start_dir}" ]] || fail "Repository search directory does not exist: ${start_dir}"
+  search_dir="$(cd -- "${start_dir}" && pwd -P)"
+
+  while :; do
     if [[ -d "${search_dir}/.git" && -f "${search_dir}/.devcontainer/podman-config.conf" ]]; then
       printf '%s' "${search_dir}"
       return
     fi
 
+    [[ "${search_dir}" == "/" ]] && break
     search_dir="$(dirname -- "${search_dir}")"
   done
 
-  fail "Unable to locate repository root from $(pwd -P)"
+  fail "Unable to locate repository root from ${start_dir}"
 }
 
 require_command() {
@@ -52,13 +56,13 @@ is_aws_credentials_error() {
 }
 
 run_aws() {
-  local output status
-  set +e
-  output="$(aws "$@" 2>&1)"
-  status=$?
-  set -e
+  local output
 
-  (( status == 0 )) && { printf '%s' "${output}"; return 0; }
+  if output="$(aws "$@" 2>&1)"; then
+    printf '%s' "${output}"
+    return 0
+  fi
+
   is_aws_credentials_error "${output}" && fail "AWS credentials were not found or have expired. Run: aws sso login --sso-session guidion"
   fail "Command failed: aws $*${output:+$'\n'${output}}"
 }
@@ -100,20 +104,36 @@ normalize_env_name() {
   printf '%s' "${normalized}"
 }
 
+is_supported_config_key() {
+  case "$1" in
+    AWS_REGION|AWS_SECRET_NAMESPACE|PODMAN_SECRET_PREFIX|PODMAN_SECRET_TYPE)
+      return 0
+      ;;
+  esac
+
+  return 1
+}
+
 load_config_file() {
   local config_file="$1"
   local line_number=0
-  local line key value
+  local line key value loaded_key
+  local -a loaded_keys=()
 
   while IFS= read -r line || [[ -n "${line}" ]]; do
     line_number=$((line_number + 1))
 
-    [[ -n "${line}" ]] || continue
+    [[ ! "${line}" =~ ^[[:space:]]*$ ]] || continue
     [[ "${line}" =~ ^[[:space:]]*# ]] && continue
     [[ "${line}" =~ ^[A-Z_][A-Z0-9_]*= ]] || fail "Invalid config entry at ${config_file}:${line_number}. Expected KEY=VALUE with uppercase shell-safe names."
 
     key="${line%%=*}"
     value="${line#*=}"
+    is_supported_config_key "${key}" || fail "Unsupported config key at ${config_file}:${line_number}: ${key}"
+
+    for loaded_key in "${loaded_keys[@]}"; do
+      [[ "${loaded_key}" != "${key}" ]] || fail "Duplicate config key at ${config_file}:${line_number}: ${key}"
+    done
 
     if [[ ${#value} -ge 2 ]]; then
       if [[ "${value:0:1}" == '"' && "${value: -1}" == '"' ]]; then
@@ -124,6 +144,7 @@ load_config_file() {
     fi
 
     printf -v "${key}" '%s' "${value}"
+    loaded_keys+=("${key}")
   done < "${config_file}"
 }
 

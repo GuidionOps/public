@@ -18,6 +18,56 @@ function Require-Command {
     }
 }
 
+function Test-SupportedConfigKey {
+    param([string]$Key)
+
+    return $Key -in @("AWS_REGION", "AWS_SECRET_NAMESPACE", "PODMAN_SECRET_PREFIX", "PODMAN_SECRET_TYPE")
+}
+
+function Resolve-RepoRoot {
+    $startDirectory = $env:PODMAN_REPO_ROOT
+    if ([string]::IsNullOrWhiteSpace($startDirectory)) {
+        $startDirectory = (Get-Location).Path
+    }
+
+    if (-not (Test-Path -LiteralPath $startDirectory -PathType Container)) {
+        Fail "Repository search directory does not exist: $startDirectory"
+    }
+
+    $directory = (Resolve-Path -LiteralPath $startDirectory).Path
+    while ($true) {
+        $gitDirectory = Join-Path $directory ".git"
+        $configFile = Join-Path $directory ".devcontainer/podman-config.conf"
+        if ((Test-Path -LiteralPath $gitDirectory -PathType Container) -and (Test-Path -LiteralPath $configFile -PathType Leaf)) {
+            return $directory
+        }
+
+        $parentDirectory = Split-Path -Parent $directory
+        if ($parentDirectory -eq $directory) {
+            break
+        }
+
+        $directory = $parentDirectory
+    }
+
+    Fail "Unable to locate repository root from $startDirectory"
+}
+
+function Resolve-PodmanCommand {
+    if (-not [string]::IsNullOrWhiteSpace($env:PODMAN_CMD)) {
+        Require-Command $env:PODMAN_CMD
+        return $env:PODMAN_CMD
+    }
+
+    foreach ($candidate in @("podman", "podman-remote", "podman-remote-static-linux_amd64")) {
+        if ($null -ne (Get-Command -Name $candidate -ErrorAction SilentlyContinue)) {
+            return $candidate
+        }
+    }
+
+    Fail "Missing required command: podman, podman-remote, or podman-remote-static-linux_amd64"
+}
+
 function Normalize-EnvName {
     param([string]$Name)
 
@@ -42,7 +92,7 @@ function Read-Config {
     foreach ($line in (Get-Content -LiteralPath $Path)) {
         $lineNumber += 1
 
-        if (($line -eq "") -or ($line -match "^\s*#")) {
+        if ([string]::IsNullOrWhiteSpace($line) -or ($line -match "^\s*#")) {
             continue
         }
 
@@ -52,6 +102,13 @@ function Read-Config {
 
         $key = $Matches[1]
         $value = $Matches[2]
+
+        if (-not (Test-SupportedConfigKey $key)) {
+            Fail "Unsupported config key at ${Path}:$lineNumber: $key"
+        }
+        if ($config.ContainsKey($key)) {
+            Fail "Duplicate config key at ${Path}:$lineNumber: $key"
+        }
 
         if ($value.Length -ge 2) {
             $first = $value.Substring(0, 1)
@@ -150,6 +207,7 @@ function Invoke-Checked {
 
 function Save-PodmanSecret {
     param(
+        [string]$PodmanCommand,
         [string]$Name,
         [string]$Value
     )
@@ -158,7 +216,7 @@ function Save-PodmanSecret {
 
     try {
         [System.IO.File]::WriteAllBytes($tempFile, [System.Text.Encoding]::UTF8.GetBytes($Value))
-        Invoke-Checked "podman" @("secret", "create", "--replace", $Name, $tempFile) | Out-Null
+        Invoke-Checked $PodmanCommand @("secret", "create", "--replace", $Name, $tempFile) | Out-Null
     }
     finally {
         if (Test-Path -LiteralPath $tempFile) {
@@ -184,9 +242,9 @@ try {
     }
 
     Require-Command "aws"
-    Require-Command "podman"
+    $podmanCommand = Resolve-PodmanCommand
 
-    $repoRoot = Resolve-Path (Get-Location)
+    $repoRoot = Resolve-RepoRoot
     $configFile = $configArgument
     if ([string]::IsNullOrWhiteSpace($configFile)) {
         $configFile = $env:PODMAN_SECRET_CONFIG
@@ -287,7 +345,7 @@ try {
             Fail "Secret '$secretName' has an empty SecretString value"
         }
 
-        Save-PodmanSecret $podmanSecretName $secretValue
+        Save-PodmanSecret $podmanCommand $podmanSecretName $secretValue
         $secretArgs += "--secret"
         $secretArgs += "source=${podmanSecretName},type=${podmanSecretType},target=${envName}"
 
