@@ -205,7 +205,7 @@ PODMAN_CMD="$(resolve_podman_command)"
 [[ -n "${AWS_SECRET_NAMESPACE:-}" ]] || fail "AWS_SECRET_NAMESPACE must be set in ${CONFIG_FILE}"
 [[ -n "${PODMAN_SECRET_PREFIX:-}" ]] || fail "PODMAN_SECRET_PREFIX must be set in ${CONFIG_FILE}"
 
-DESTINATION="${REPO_ROOT}/.devcontainer/cache"
+DESTINATION="${REPO_ROOT}/.devcontainer/.cache"
 assert_safe_destination "${DESTINATION}"
 STAGE="$(mktemp -d "${REPO_ROOT}/.devcontainer/.secret-stage.XXXXXX")"
 

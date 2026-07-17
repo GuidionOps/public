@@ -250,7 +250,7 @@ try {
     $podman = Resolve-PodmanCommand
 
     $devcontainer = Join-Path $repoRoot ".devcontainer"
-    $destination = Join-Path $devcontainer "cache"
+    $destination = Join-Path $devcontainer ".cache"
     Assert-SafeDestination $destination
     $stage = Join-Path $devcontainer (".secret-stage." + [Guid]::NewGuid().ToString("N"))
     [System.IO.Directory]::CreateDirectory($stage) | Out-Null
