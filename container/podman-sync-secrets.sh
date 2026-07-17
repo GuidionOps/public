@@ -168,6 +168,12 @@ trap cleanup EXIT
 
 publish_files() {
   local parent="$1"
+  if [[ ! -e "${DESTINATION}" && ! -L "${DESTINATION}" ]]; then
+    mv -- "${STAGE}" "${DESTINATION}"
+    STAGE=""
+    return
+  fi
+
   BACKUP="$(mktemp -d "${parent}/.secret-backup.XXXXXX")"
   rmdir -- "${BACKUP}"
   mv -- "${DESTINATION}" "${BACKUP}"
@@ -205,8 +211,12 @@ PODMAN_CMD="$(resolve_podman_command)"
 [[ -n "${AWS_SECRET_NAMESPACE:-}" ]] || fail "AWS_SECRET_NAMESPACE must be set in ${CONFIG_FILE}"
 [[ -n "${PODMAN_SECRET_PREFIX:-}" ]] || fail "PODMAN_SECRET_PREFIX must be set in ${CONFIG_FILE}"
 
-DESTINATION="${REPO_ROOT}/.devcontainer/.cache"
-assert_safe_destination "${DESTINATION}"
+cache_directory="${REPO_ROOT}/.devcontainer/.cache"
+assert_safe_destination "${cache_directory}"
+DESTINATION="${cache_directory}/compose-secrets"
+if [[ -e "${DESTINATION}" || -L "${DESTINATION}" ]]; then
+  assert_safe_destination "${DESTINATION}"
+fi
 STAGE="$(mktemp -d "${REPO_ROOT}/.devcontainer/.secret-stage.XXXXXX")"
 
 secret_prefix="${AWS_SECRET_NAMESPACE%/}/"

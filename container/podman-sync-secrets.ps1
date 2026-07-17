@@ -204,6 +204,11 @@ function Assert-SafeDestination {
 
 function Publish-Files {
     param([string]$Stage, [string]$Destination, [string]$Parent)
+    if (-not (Test-Path -LiteralPath $Destination)) {
+        [System.IO.Directory]::Move($Stage, $Destination)
+        return
+    }
+
     $backup = Join-Path $Parent (".secret-backup." + [Guid]::NewGuid().ToString("N"))
     [System.IO.Directory]::Move($Destination, $backup)
     try {
@@ -250,8 +255,12 @@ try {
     $podman = Resolve-PodmanCommand
 
     $devcontainer = Join-Path $repoRoot ".devcontainer"
-    $destination = Join-Path $devcontainer ".cache"
-    Assert-SafeDestination $destination
+    $cacheDirectory = Join-Path $devcontainer ".cache"
+    Assert-SafeDestination $cacheDirectory
+    $destination = Join-Path $cacheDirectory "compose-secrets"
+    if ((Test-Path -LiteralPath $destination) -or (Test-Path -LiteralPath $destination -PathType Container)) {
+        Assert-SafeDestination $destination
+    }
     $stage = Join-Path $devcontainer (".secret-stage." + [Guid]::NewGuid().ToString("N"))
     [System.IO.Directory]::CreateDirectory($stage) | Out-Null
 

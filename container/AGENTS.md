@@ -19,8 +19,9 @@ Calling repositories must create and ignore `.devcontainer/.cache/` before
 `initializeCommand` runs. The wrapper is called from the repository root.
 
 Every synchronization creates or replaces Podman env secrets and publishes the
-same values as files under `.devcontainer/cache/`. The calling repository must
-create that directory first. `PODMAN_SECRET_TYPE` does not select behavior.
+same values as files under `.devcontainer/.cache/compose-secrets/`. The calling
+repository must create `.devcontainer/.cache/` first; the scripts publish its
+`compose-secrets/` child. `PODMAN_SECRET_TYPE` does not select behavior.
 
 Stdout cannot modify `devcontainer.json`. Calling repositories must explicitly
 add every required Podman secret to `runArgs` using

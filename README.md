@@ -58,9 +58,9 @@ Every run performs both actions:
   `<PODMAN_SECRET_PREFIX>__<NORMALIZED_SECRET_KEY>` and prints the existing
   `--secret source=...,type=env,target=...` arguments.
 - Replaces the complete file-secret set under
-  `.devcontainer/cache/<NORMALIZED_SECRET_KEY>`.
+  `.devcontainer/.cache/compose-secrets/<NORMALIZED_SECRET_KEY>`.
 
-The calling repository must create `.devcontainer/cache/` before running the
+The calling repository must create `.devcontainer/.cache/` before running the
 script; a missing directory is an error. `PODMAN_SECRET_TYPE` is no longer used
 to select behavior and is ignored when present. The scripts do not run chmod or
 ACL operations.
