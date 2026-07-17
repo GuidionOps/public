@@ -18,9 +18,16 @@ random operating-system temporary paths or extra path variables.
 Calling repositories must create and ignore `.devcontainer/.cache/` before
 `initializeCommand` runs. The wrapper is called from the repository root.
 
-`initializeCommand` only creates or replaces Podman secrets; its stdout cannot
-modify `devcontainer.json`. Calling repositories must explicitly add every
-required secret to `runArgs` using `source=<PODMAN_SECRET_PREFIX>__<NORMALIZED_SECRET_KEY>,type=env,target=<NORMALIZED_SECRET_KEY>`.
+Every synchronization creates or replaces Podman env secrets and publishes the
+same values as files under `.devcontainer/cache/`. The calling repository must
+create that directory first. `PODMAN_SECRET_TYPE` does not select behavior.
+
+Stdout cannot modify `devcontainer.json`. Calling repositories must explicitly
+add every required Podman secret to `runArgs` using
+`source=<PODMAN_SECRET_PREFIX>__<NORMALIZED_SECRET_KEY>,type=env,target=<NORMALIZED_SECRET_KEY>`.
+
+Do not add chmod, ACL, or other permission-changing behavior to the sync
+implementations.
 
 For PowerShell edits:
 

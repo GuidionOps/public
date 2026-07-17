@@ -19,32 +19,29 @@ function Require-Command {
 }
 
 function Resolve-RepoRoot {
-    $startDirectory = $env:PODMAN_REPO_ROOT
-    if ([string]::IsNullOrWhiteSpace($startDirectory)) {
-        $startDirectory = (Get-Location).Path
+    $directory = $env:PODMAN_REPO_ROOT
+    if ([string]::IsNullOrWhiteSpace($directory)) {
+        $directory = (Get-Location).Path
+    }
+    if (-not (Test-Path -LiteralPath $directory -PathType Container)) {
+        Fail "Repository search directory does not exist: $directory"
     }
 
-    if (-not (Test-Path -LiteralPath $startDirectory -PathType Container)) {
-        Fail "Repository search directory does not exist: $startDirectory"
-    }
-
-    $directory = (Resolve-Path -LiteralPath $startDirectory).Path
+    $directory = (Resolve-Path -LiteralPath $directory).Path
     while ($true) {
         $gitDirectory = Join-Path $directory ".git"
         $configFile = Join-Path $directory ".devcontainer/podman-config.conf"
         if ((Test-Path -LiteralPath $gitDirectory -PathType Container) -and (Test-Path -LiteralPath $configFile -PathType Leaf)) {
             return $directory
         }
-
-        $parentDirectory = Split-Path -Parent $directory
-        if ($parentDirectory -eq $directory) {
+        $parent = Split-Path -Parent $directory
+        if ($parent -eq $directory) {
             break
         }
-
-        $directory = $parentDirectory
+        $directory = $parent
     }
 
-    Fail "Unable to locate repository root from $startDirectory"
+    Fail "Unable to locate repository root"
 }
 
 function Resolve-PodmanCommand {
@@ -52,84 +49,60 @@ function Resolve-PodmanCommand {
         Require-Command $env:PODMAN_CMD
         return $env:PODMAN_CMD
     }
-
     foreach ($candidate in @("podman", "podman-remote", "podman-remote-static-linux_amd64")) {
         if ($null -ne (Get-Command -Name $candidate -ErrorAction SilentlyContinue)) {
             return $candidate
         }
     }
-
     Fail "Missing required command: podman, podman-remote, or podman-remote-static-linux_amd64"
 }
 
 function Normalize-EnvName {
     param([string]$Name)
-
-    $normalized = $Name.ToUpperInvariant()
-    $normalized = [regex]::Replace($normalized, "[^A-Z0-9]+", "_")
-    $normalized = $normalized.Trim("_")
-    $normalized = [regex]::Replace($normalized, "_+", "_")
-
+    $normalized = [regex]::Replace($Name.ToUpperInvariant(), "[^A-Z0-9]+", "_")
+    $normalized = [regex]::Replace($normalized.Trim("_"), "_+", "_")
     if ([string]::IsNullOrWhiteSpace($normalized)) {
         Fail "Unable to derive environment variable name from secret key '$Name'"
     }
-
     return $normalized
 }
 
 function Read-Config {
     param([string]$Path)
-
     $config = @{}
     $lineNumber = 0
-
     foreach ($line in (Get-Content -LiteralPath $Path)) {
         $lineNumber += 1
-
         if ([string]::IsNullOrWhiteSpace($line) -or ($line -match "^\s*#")) {
             continue
         }
-
         if ($line -notmatch "^([A-Z_][A-Z0-9_]*)=(.*)$") {
-            Fail "Invalid config entry at ${Path}:$lineNumber. Expected KEY=VALUE with uppercase shell-safe names."
+            Fail "Invalid config entry at ${Path}:$lineNumber. Expected KEY=VALUE."
         }
-
-        $key = $Matches[1]
         $value = $Matches[2]
-
         if ($value.Length -ge 2) {
             $first = $value.Substring(0, 1)
             $last = $value.Substring($value.Length - 1, 1)
-
             if ((($first -eq '"') -and ($last -eq '"')) -or (($first -eq "'") -and ($last -eq "'"))) {
                 $value = $value.Substring(1, $value.Length - 2)
             }
         }
-
-        $config[$key] = $value
+        $config[$Matches[1]] = $value
     }
-
     return $config
 }
 
 function Require-Config {
-    param(
-        [hashtable]$Config,
-        [string]$Key,
-        [string]$Path
-    )
-
+    param([hashtable]$Config, [string]$Key, [string]$Path)
     if ((-not $Config.ContainsKey($Key)) -or [string]::IsNullOrWhiteSpace($Config[$Key])) {
         Fail "$Key must be set in $Path"
     }
-
     return [string]$Config[$Key]
 }
 
 function Get-AwsCredentialHelp {
-    param([string]$CommandOutput)
-
-    $patterns = @(
+    param([string]$Output)
+    foreach ($pattern in @(
         "Error when retrieving token from sso",
         "The SSO session associated with this profile has expired or is otherwise invalid",
         "Token has expired and refresh failed",
@@ -137,99 +110,125 @@ function Get-AwsCredentialHelp {
         "Unable to find credentials",
         "NoCredentialsError",
         "ExpiredToken",
-        "ExpiredTokenException",
         "InvalidClientTokenId",
         "UnrecognizedClientException"
-    )
-
-    foreach ($pattern in $patterns) {
-        if ($CommandOutput -like "*$pattern*") {
+    )) {
+        if ($Output -like "*$pattern*") {
             return "AWS credentials were not found or have expired. Run: aws sso login --sso-session guidion"
         }
     }
-
     return $null
 }
 
 function Invoke-Checked {
-    param(
-        [string]$Command,
-        [string[]]$Arguments
-    )
-
-    # Native stderr is represented as an ErrorRecord by Windows PowerShell.
-    # Do not let the script-wide `Stop` preference throw before we can inspect
-    # the native process exit code and render its diagnostic below.
-    $previousErrorActionPreference = $ErrorActionPreference
+    param([string]$Command, [string[]]$Arguments, [bool]$Sensitive = $false, [string]$SecretName = "")
+    $previousPreference = $ErrorActionPreference
     try {
         $ErrorActionPreference = "Continue"
         $output = & $Command @Arguments 2>&1
         $exitCode = $LASTEXITCODE
     }
     finally {
-        $ErrorActionPreference = $previousErrorActionPreference
+        $ErrorActionPreference = $previousPreference
     }
 
-    $renderedOutput = ($output | ForEach-Object { $_.ToString() }) -join [Environment]::NewLine
-
+    $text = ($output | ForEach-Object { $_.ToString() }) -join [Environment]::NewLine
     if ($exitCode -ne 0) {
         if ($Command -eq "aws") {
-            $credentialHelp = Get-AwsCredentialHelp $renderedOutput
-            if ($null -ne $credentialHelp) {
-                Fail $credentialHelp
+            $help = Get-AwsCredentialHelp $text
+            if ($null -ne $help) {
+                Fail $help
             }
         }
-
-        $commandLine = @($Command) + $Arguments
-
-        if ([string]::IsNullOrWhiteSpace($renderedOutput)) {
-            Fail "Command failed: $($commandLine -join ' ')"
+        if ($Sensitive) {
+            Fail "Failed to retrieve SecretString for secret '$SecretName'"
         }
-
-        Fail "Command failed: $($commandLine -join ' ')`n$renderedOutput"
+        Fail "Command failed: $Command"
     }
+    return $text
+}
 
-    return $renderedOutput
+function Get-SecretString {
+    param([string]$Region, [string]$SecretName)
+    $json = Invoke-Checked "aws" @(
+        "secretsmanager", "get-secret-value",
+        "--region", $Region,
+        "--secret-id", $SecretName,
+        "--query", "SecretString",
+        "--output", "json"
+    ) $true $SecretName
+    try {
+        $value = ConvertFrom-Json -InputObject $json
+    }
+    catch {
+        Fail "AWS returned an invalid SecretString response for secret '$SecretName'"
+    }
+    if ($null -eq $value) {
+        Fail "Secret '$SecretName' does not contain a SecretString value"
+    }
+    return [string]$value
 }
 
 function Save-PodmanSecret {
-    param(
-        [string]$PodmanCommand,
-        [string]$Name,
-        [string]$Value
-    )
-
+    param([string]$Podman, [string]$Name, [string]$Value)
     $tempFile = [System.IO.Path]::GetTempFileName()
-
     try {
         [System.IO.File]::WriteAllBytes($tempFile, [System.Text.Encoding]::UTF8.GetBytes($Value))
-        Invoke-Checked $PodmanCommand @("secret", "create", "--replace", $Name, $tempFile) | Out-Null
+        Invoke-Checked $Podman @("secret", "create", "--replace", $Name, $tempFile) | Out-Null
     }
     finally {
-        if (Test-Path -LiteralPath $tempFile) {
-            Remove-Item -LiteralPath $tempFile -Force
+        Remove-Item -LiteralPath $tempFile -Force -ErrorAction SilentlyContinue
+    }
+}
+
+function Test-IsReparsePoint {
+    param([System.IO.FileSystemInfo]$Item)
+    return (($Item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0)
+}
+
+function Assert-SafeDestination {
+    param([string]$Path)
+    $item = Get-Item -LiteralPath $Path -Force -ErrorAction SilentlyContinue
+    if (($null -eq $item) -or -not $item.PSIsContainer) {
+        Fail "Required secret directory does not exist: $Path"
+    }
+    if (Test-IsReparsePoint $item) {
+        Fail "Refusing reparse-point secret directory: $Path"
+    }
+    foreach ($child in (Get-ChildItem -LiteralPath $Path -Force)) {
+        if ((Test-IsReparsePoint $child) -or $child.PSIsContainer) {
+            Fail "Secret directory contains an unexpected reparse point or directory: $($child.FullName)"
         }
     }
 }
 
+function Publish-Files {
+    param([string]$Stage, [string]$Destination, [string]$Parent)
+    $backup = Join-Path $Parent (".secret-backup." + [Guid]::NewGuid().ToString("N"))
+    [System.IO.Directory]::Move($Destination, $backup)
+    try {
+        [System.IO.Directory]::Move($Stage, $Destination)
+    }
+    catch {
+        [System.IO.Directory]::Move($backup, $Destination)
+        throw
+    }
+    Remove-Item -LiteralPath $backup -Recurse -Force
+}
+
+$stage = $null
 try {
     $configArgument = $null
-    for ($i = 0; $i -lt $args.Count; $i++) {
-        if ($args[$i] -eq "--config") {
-            if (($i + 1) -ge $args.Count) {
-                Fail "--config requires a path"
-            }
-
-            $configArgument = $args[$i + 1]
-            $i += 1
-            continue
+    for ($index = 0; $index -lt $args.Count; $index++) {
+        if ($args[$index] -ne "--config") {
+            Fail "Unsupported argument: $($args[$index])"
         }
-
-        Fail "Unsupported argument: $($args[$i])"
+        if (($index + 1) -ge $args.Count) {
+            Fail "--config requires a path"
+        }
+        $configArgument = $args[$index + 1]
+        $index += 1
     }
-
-    Require-Command "aws"
-    $podmanCommand = Resolve-PodmanCommand
 
     $repoRoot = Resolve-RepoRoot
     $configFile = $configArgument
@@ -239,129 +238,96 @@ try {
     if ([string]::IsNullOrWhiteSpace($configFile)) {
         $configFile = Join-Path $repoRoot ".devcontainer/podman-config.conf"
     }
-
     if (-not (Test-Path -LiteralPath $configFile -PathType Leaf)) {
         Fail "Config file not found: $configFile"
     }
 
     $config = Read-Config $configFile
-    $awsRegion = Require-Config $config "AWS_REGION" $configFile
-    $awsSecretNamespace = Require-Config $config "AWS_SECRET_NAMESPACE" $configFile
-    $podmanSecretPrefix = Require-Config $config "PODMAN_SECRET_PREFIX" $configFile
-    $podmanSecretType = Require-Config $config "PODMAN_SECRET_TYPE" $configFile
+    $region = Require-Config $config "AWS_REGION" $configFile
+    $namespace = Require-Config $config "AWS_SECRET_NAMESPACE" $configFile
+    $podmanPrefix = Require-Config $config "PODMAN_SECRET_PREFIX" $configFile
+    Require-Command "aws"
+    $podman = Resolve-PodmanCommand
 
-    if ($podmanSecretType -ne "env") {
-        Fail "Unsupported PODMAN_SECRET_TYPE '$podmanSecretType'. Expected 'env'."
-    }
+    $devcontainer = Join-Path $repoRoot ".devcontainer"
+    $destination = Join-Path $devcontainer "cache"
+    Assert-SafeDestination $destination
+    $stage = Join-Path $devcontainer (".secret-stage." + [Guid]::NewGuid().ToString("N"))
+    [System.IO.Directory]::CreateDirectory($stage) | Out-Null
 
-    $secretPrefix = $awsSecretNamespace.TrimEnd("/") + "/"
+    $secretPrefix = $namespace.TrimEnd("/") + "/"
     Log "Discovering AWS secrets under $secretPrefix"
-
-    $secretNamesText = Invoke-Checked "aws" @(
+    $namesText = Invoke-Checked "aws" @(
         "secretsmanager", "list-secrets",
-        "--region", $awsRegion,
+        "--region", $region,
         "--filters", "Key=name,Values=$secretPrefix",
         "--query", "SecretList[].Name",
         "--output", "text"
     )
-
-    $secretNames = @(
-        $secretNamesText -split "[`t`r`n]+" |
-            Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
-            Sort-Object
-    )
-
+    $secretNames = @($namesText -split "[`t`r`n]+" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object)
     if ($secretNames.Count -eq 0) {
         Fail "No AWS secrets found under namespace '$secretPrefix'"
     }
 
-    $sourcesByEnvName = @{}
+    $sources = @{}
     foreach ($secretName in $secretNames) {
         $envName = Normalize-EnvName (Split-Path -Leaf $secretName)
-
-        if ($sourcesByEnvName.ContainsKey($envName)) {
-            $existingSecret = $sourcesByEnvName[$envName]
-            Fail "Secrets '$existingSecret' and '$secretName' both normalize to '$envName'. Rename one secret to avoid a Podman target collision."
+        if ($sources.ContainsKey($envName)) {
+            Fail "Secrets '$($sources[$envName])' and '$secretName' both normalize to '$envName'"
         }
-
-        $sourcesByEnvName[$envName] = $secretName
+        $sources[$envName] = $secretName
     }
 
     $secretArgs = @()
-    $missingCurrentSecrets = @()
-
+    $synced = 0
     foreach ($secretName in $secretNames) {
         $envName = Normalize-EnvName (Split-Path -Leaf $secretName)
-        $podmanSecretName = "${podmanSecretPrefix}__${envName}"
-
-        $versionStages = Invoke-Checked "aws" @(
-            "secretsmanager", "describe-secret",
-            "--region", $awsRegion,
-            "--secret-id", $secretName,
-            "--query", "VersionIdsToStages",
-            "--output", "text"
-        )
-
-        if (@($versionStages -split "\s+") -notcontains "AWSCURRENT") {
+        $stages = Invoke-Checked "aws" @("secretsmanager", "describe-secret", "--region", $region, "--secret-id", $secretName, "--query", "VersionIdsToStages", "--output", "text")
+        if (@($stages -split "\s+") -notcontains "AWSCURRENT") {
             Log "Skipping ${secretName}: no AWSCURRENT version is available yet"
-            $missingCurrentSecrets += $secretName
             continue
         }
 
-        $hasSecretString = Invoke-Checked "aws" @(
-            "secretsmanager", "get-secret-value",
-            "--region", $awsRegion,
-            "--secret-id", $secretName,
-            "--query", 'SecretString != `null`',
-            "--output", "text"
-        )
-
-        if ($hasSecretString -ne "True") {
+        $hasString = Invoke-Checked "aws" @("secretsmanager", "get-secret-value", "--region", $region, "--secret-id", $secretName, "--query", 'SecretString != `null`', "--output", "text")
+        if ($hasString -ne "True") {
             Fail "Secret '$secretName' does not contain a SecretString value"
         }
-
-        $secretValue = Invoke-Checked "aws" @(
-            "secretsmanager", "get-secret-value",
-            "--region", $awsRegion,
-            "--secret-id", $secretName,
-            "--query", "SecretString",
-            "--output", "text"
-        )
-
-        if ([string]::IsNullOrEmpty($secretValue) -or ($secretValue -eq "None")) {
+        $value = Get-SecretString $region $secretName
+        if ([string]::IsNullOrEmpty($value)) {
             Fail "Secret '$secretName' has an empty SecretString value"
         }
 
-        Save-PodmanSecret $podmanCommand $podmanSecretName $secretValue
+        $secretFile = Join-Path $stage $envName
+        [System.IO.File]::WriteAllBytes($secretFile, [System.Text.Encoding]::UTF8.GetBytes($value))
+        $podmanName = "${podmanPrefix}__${envName}"
+        $podmanValue = $value.TrimEnd([char[]]"`r`n")
+        if ([string]::IsNullOrEmpty($podmanValue) -or ($podmanValue -eq "None")) {
+            Fail "Secret '$secretName' has an empty SecretString value"
+        }
+        Save-PodmanSecret $podman $podmanName $podmanValue
         $secretArgs += "--secret"
-        $secretArgs += "source=${podmanSecretName},type=${podmanSecretType},target=${envName}"
-
-        Log "Synced $secretName as $podmanSecretName"
+        $secretArgs += "source=${podmanName},type=env,target=${envName}"
+        $synced += 1
+        Log "Synced $secretName as $podmanName and $envName"
     }
 
-    if ($secretArgs.Count -eq 0) {
-        if ($missingCurrentSecrets.Count -gt 0) {
-            $missingSecrets = $missingCurrentSecrets -join " "
-            Fail "AWS secrets exist under '$secretPrefix', but none have an AWSCURRENT value yet. Populate the secret values in AWS Secrets Manager first: $missingSecrets"
-        }
-
+    if ($synced -eq 0) {
         Fail "No usable AWS secrets found under namespace '$secretPrefix'"
     }
-
+    Publish-Files $stage $destination $devcontainer
+    $stage = $null
     Write-Output ($secretArgs -join " ")
 }
 catch {
     $message = $_.Exception.Message
     if ([string]::IsNullOrWhiteSpace($message)) {
-        $message = $_.ToString()
+        $message = "An unknown error occurred while synchronizing secrets."
     }
-    if ([string]::IsNullOrWhiteSpace($message)) {
-        $message = "An unknown error occurred while synchronizing Podman secrets."
-    }
-
     Log "ERROR: $message"
-    if (-not [string]::IsNullOrWhiteSpace($_.ScriptStackTrace)) {
-        Log "Stack trace: $($_.ScriptStackTrace)"
-    }
     exit 1
+}
+finally {
+    if (($null -ne $stage) -and (Test-Path -LiteralPath $stage -PathType Container)) {
+        Remove-Item -LiteralPath $stage -Recurse -Force
+    }
 }

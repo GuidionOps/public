@@ -35,3 +35,52 @@ Please provde one of these for the 'workspace' name as the second argument:
                            PRE afsprk_nl/
                            PRE circleci/
 ```
+
+## Devcontainer secret synchronization
+
+`container/podman-sync-secrets-host.cmd` is the cross-platform bootstrap used by
+devcontainer `initializeCommand`. It downloads and runs the canonical
+PowerShell implementation on Windows or the canonical Bash implementation on
+Linux and macOS. Calling repositories must create and ignore
+`.devcontainer/.cache/` before invoking it.
+
+Configure `.devcontainer/podman-config.conf` with uppercase `KEY=VALUE` entries:
+
+```ini
+AWS_REGION=eu-west-1
+AWS_SECRET_NAMESPACE=path/to/application
+PODMAN_SECRET_PREFIX=application
+```
+
+Every run performs both actions:
+
+- Creates or replaces Podman secrets named
+  `<PODMAN_SECRET_PREFIX>__<NORMALIZED_SECRET_KEY>` and prints the existing
+  `--secret source=...,type=env,target=...` arguments.
+- Replaces the complete file-secret set under
+  `.devcontainer/cache/<NORMALIZED_SECRET_KEY>`.
+
+The calling repository must create `.devcontainer/cache/` before running the
+script; a missing directory is an error. `PODMAN_SECRET_TYPE` is no longer used
+to select behavior and is ignored when present. The scripts do not run chmod or
+ACL operations.
+
+Secret keys are normalized by uppercasing them, replacing runs of non-alphanumeric
+characters with `_`, trimming leading and trailing `_`, and collapsing repeated
+`_`. A normalization collision fails the entire sync. Secrets without an
+`AWSCURRENT` version are skipped; missing or empty `SecretString` values fail the
+sync. The previously published file set stays in place when AWS retrieval
+fails, and stale destination files are removed after a complete successful
+sync.
+
+Run the regression suite with:
+
+```sh
+bash container/tests/test-podman-sync-secrets.sh
+```
+
+On Windows, run the Windows PowerShell 5.1 harness from the repository root:
+
+```powershell
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File container/tests/Test-PodmanSyncSecrets.ps1 -Implementation container/podman-sync-secrets.ps1
+```
