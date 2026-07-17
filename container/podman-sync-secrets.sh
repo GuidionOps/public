@@ -143,10 +143,13 @@ write_secret_string() {
 }
 
 assert_safe_destination() {
-  local destination="$1" entry
+  local destination="$1" allowed_directory="${2:-}" entry
   [[ ! -L "${destination}" ]] || fail "Refusing symbolic-link secret directory: ${destination}"
   [[ -d "${destination}" ]] || fail "Required secret directory does not exist: ${destination}"
   while IFS= read -r -d '' entry; do
+    if [[ -n "${allowed_directory}" && "${entry}" == "${destination}/${allowed_directory}" && ! -L "${entry}" && -d "${entry}" ]]; then
+      continue
+    fi
     [[ ! -L "${entry}" && -f "${entry}" ]] \
       || fail "Secret directory contains an unexpected symbolic link or directory: ${entry}"
   done < <(find "${destination}" -mindepth 1 -maxdepth 1 -print0)
@@ -212,7 +215,7 @@ PODMAN_CMD="$(resolve_podman_command)"
 [[ -n "${PODMAN_SECRET_PREFIX:-}" ]] || fail "PODMAN_SECRET_PREFIX must be set in ${CONFIG_FILE}"
 
 cache_directory="${REPO_ROOT}/.devcontainer/.cache"
-assert_safe_destination "${cache_directory}"
+assert_safe_destination "${cache_directory}" "compose-secrets"
 DESTINATION="${cache_directory}/compose-secrets"
 if [[ -e "${DESTINATION}" || -L "${DESTINATION}" ]]; then
   assert_safe_destination "${DESTINATION}"

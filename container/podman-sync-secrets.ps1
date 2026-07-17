@@ -187,7 +187,7 @@ function Test-IsReparsePoint {
 }
 
 function Assert-SafeDestination {
-    param([string]$Path)
+    param([string]$Path, [string]$AllowedDirectoryName = "")
     $item = Get-Item -LiteralPath $Path -Force -ErrorAction SilentlyContinue
     if (($null -eq $item) -or -not $item.PSIsContainer) {
         Fail "Required secret directory does not exist: $Path"
@@ -196,7 +196,8 @@ function Assert-SafeDestination {
         Fail "Refusing reparse-point secret directory: $Path"
     }
     foreach ($child in (Get-ChildItem -LiteralPath $Path -Force)) {
-        if ((Test-IsReparsePoint $child) -or $child.PSIsContainer) {
+        $isAllowedDirectory = $child.PSIsContainer -and ($child.Name -eq $AllowedDirectoryName)
+        if ((Test-IsReparsePoint $child) -or ($child.PSIsContainer -and -not $isAllowedDirectory)) {
             Fail "Secret directory contains an unexpected reparse point or directory: $($child.FullName)"
         }
     }
@@ -256,7 +257,7 @@ try {
 
     $devcontainer = Join-Path $repoRoot ".devcontainer"
     $cacheDirectory = Join-Path $devcontainer ".cache"
-    Assert-SafeDestination $cacheDirectory
+    Assert-SafeDestination $cacheDirectory "compose-secrets"
     $destination = Join-Path $cacheDirectory "compose-secrets"
     if ((Test-Path -LiteralPath $destination) -or (Test-Path -LiteralPath $destination -PathType Container)) {
         Assert-SafeDestination $destination
