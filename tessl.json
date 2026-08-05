@@ -1,0 +1,26 @@
+{
+  "name": "public",
+  "mode": "vendored",
+  "dependencies": {
+    "lchenrique/politron-ide": {
+      "version": "7114206a5559b3ac26694fb371565932eacd059c",
+      "source": "https://github.com/lchenrique/politron-ide",
+      "include": {
+        "skills": [
+          "powershell-windows"
+        ]
+      }
+    },
+    "sickn33/antigravity-awesome-skills": {
+      "version": "5e31f236726a988e833b39215d140b2173bf05c0",
+      "source": "https://github.com/sickn33/antigravity-awesome-skills",
+      "include": {
+        "skills": [
+          "bash-pro",
+          "bash-linux",
+          "bash-defensive-patterns"
+        ]
+      }
+    }
+  }
+}

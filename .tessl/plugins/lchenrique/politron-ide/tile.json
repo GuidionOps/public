@@ -1,0 +1,60 @@
+{
+  "name": "lchenrique/politron-ide",
+  "version": "7114206a5559b3ac26694fb371565932eacd059c",
+  "summary": "Auto-generated plugin from GitHub (46 skills)",
+  "private": true,
+  "skills": {
+    "powershell-windows": {
+      "path": ".agent/skills/powershell-windows/SKILL.md"
+    }
+  },
+  "excludes": {
+    "skills": [
+      "2d-games",
+      "3d-games",
+      "api-patterns",
+      "app-builder",
+      "architecture",
+      "bash-linux",
+      "behavioral-modes",
+      "brainstorming",
+      "clean-code",
+      "code-review-checklist",
+      "database-design",
+      "deployment-procedures",
+      "documentation-templates",
+      "frontend-design",
+      "game-art",
+      "game-audio",
+      "game-design",
+      "game-development",
+      "geo-fundamentals",
+      "i18n-localization",
+      "intelligent-routing",
+      "mcp-builder",
+      "mobile-design",
+      "mobile-games",
+      "multiplayer",
+      "nextjs-best-practices",
+      "nodejs-best-practices",
+      "parallel-agents",
+      "pc-games",
+      "performance-profiling",
+      "plan-writing",
+      "python-patterns",
+      "react-patterns",
+      "red-team-tactics",
+      "seo-fundamentals",
+      "server-management",
+      "systematic-debugging",
+      "tailwind-patterns",
+      "tdd-workflow",
+      "templates",
+      "testing-patterns",
+      "vr-ar",
+      "vulnerability-scanner",
+      "web-games",
+      "webapp-testing"
+    ]
+  }
+}
